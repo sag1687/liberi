@@ -1,0 +1,84 @@
+# Autore: Sarino Alfonso Grande
+# Sito: sinocloud.it
+# Analista GIS e Sviluppatore Python
+
+import os  # Autore: Sarino Alfonso Grande, sinocloud.it
+import requests  # Autore: Sarino Alfonso Grande, sinocloud.it
+import xml.etree.ElementTree as ET  # Autore: Sarino Alfonso Grande, sinocloud.it
+from shapely.geometry import Point  # Autore: Sarino Alfonso Grande, sinocloud.it
+import geopandas as gpd  # Autore: Sarino Alfonso Grande, sinocloud.it
+import pandas as pd  # Autore: Sarino Alfonso Grande, sinocloud.it
+
+# Directory del progetto - Autore: Sarino Alfonso Grande, sinocloud.it
+project_dir = 'D:/Ferrovie'
+image_dir = os.path.join(project_dir, 'immagini')
+os.makedirs(image_dir, exist_ok=True)
+
+# Nome del file KML - Autore: Sarino Alfonso Grande, sinocloud.it
+kml_file = 'input.kml'
+
+# Funzione per scaricare immagini - Autore: Sarino Alfonso Grande, sinocloud.it
+def download_image(url, dest_folder, image_name):
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+    
+    # Rimuove caratteri HTML entity - Autore: Sarino Alfonso Grande, sinocloud.it
+    url = url.replace('&amp;', '&')
+    
+    # Rimuove la parte finale dell'URL non necessaria - Autore: Sarino Alfonso Grande, sinocloud.it
+    if '?session=0&fife=s{size}' in url:
+        url = url.split('?session=0&fife=s{size}')[0]
+    
+    local_filename = os.path.join(dest_folder, image_name + '.png')
+    
+    try:
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(local_filename, 'wb') as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+            return local_filename
+        else:
+            print(f"Errore nel download dell'immagine {url}: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Errore nel download dell'immagine {url}: {e}")
+        return None
+
+# Legge il file KML - Autore: Sarino Alfonso Grande, sinocloud.it
+tree = ET.parse(kml_file)
+root = tree.getroot()
+
+# Definisce i namespace - Autore: Sarino Alfonso Grande, sinocloud.it
+ns = {'kml': 'http://www.opengis.net/kml/2.2', 'gx': 'http://www.google.com/kml/ext/2.2'}
+
+# Estrae i placemark - Autore: Sarino Alfonso Grande, sinocloud.it
+placemarks = root.findall('.//kml:Placemark', ns)
+
+# Lista per memorizzare i dati - Autore: Sarino Alfonso Grande, sinocloud.it
+data = []
+
+# Processa ogni placemark - Autore: Sarino Alfonso Grande, sinocloud.it
+for placemark in placemarks:
+    name = placemark.find('kml:name', ns).text if placemark.find('kml:name', ns) is not None else 'N/A'
+    coords = placemark.find('.//kml:coordinates', ns).text.strip().split(',')
+    lon, lat = float(coords[0]), float(coords[1])
+    image_url = placemark.find('.//gx:imageUrl', ns).text if placemark.find('.//gx:imageUrl', ns) is not None else None
+    local_image_path = None
+    
+    # Creazione del nome dell'immagine basato sulle coordinate - Autore: Sarino Alfonso Grande, sinocloud.it
+    image_name = f"{str(lon).replace('.', '').replace('-', 'N')}_{str(lat).replace('.', '').replace('-', 'N')}"
+    
+    if image_url:
+        local_image_path = download_image(image_url, image_dir, image_name)
+    
+    # Calcola il percorso relativo - Autore: Sarino Alfonso Grande, sinocloud.it
+    if local_image_path:
+        relative_image_path = os.path.relpath(local_image_path, project_dir)
+    else:
+        relative_image_path = None
+    
+    data.append({
+        'name': name,
+        'geometry': Point(lon, lat),
+        'image_path': relative
